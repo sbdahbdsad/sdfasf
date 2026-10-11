@@ -1377,26 +1377,19 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
     });
   }
 
-  function isWebProxyLink(link) {
-    var l = String(link || '').toLowerCase();
-    // The built-in Web Proxy link: https://t.me/webproxy?server=..&secret=..
-    // Checked before the native t.me/proxy rules — "webproxy" does not contain
-    // "proxy?" as a prefix, so neither rule matches the other's links.
-    return l.indexOf('t.me/webproxy?') >= 0 || l.indexOf('tg://webproxy') >= 0;
-  }
-
   function protoOf(link) {
-    if (isWebProxyLink(link)) return 'Telegram Web Proxy';
-    var l = String(link || '').toLowerCase();
-    if (l.indexOf('t.me/proxy?') >= 0 || l.indexOf('tg://proxy') === 0) return 'Telegram';
     var m = String(link || '').match(/^[a-z0-9]+:\/\//i);
     return m ? m[0].replace('://', '').toUpperCase() : 'PROXY';
   }
 
   function configCategory(link) {
     var l = String(link || '').toLowerCase();
-    if (isWebProxyLink(link)) return 'telegram';
-    if (l.indexOf('t.me/proxy?') === 0 || l.indexOf('https://t.me/proxy?') === 0 || l.indexOf('tg://proxy') === 0) return 'telegram';
+    // Standard MTProxy and Web Proxy links (dd-prefixed per-user secret) both
+    // belong to Telegram Proxy, not the generic TLS group.
+    if (l.indexOf('t.me/webproxy') >= 0 || l.indexOf('tg://webproxy') === 0 ||
+        l.indexOf('t.me/proxy') >= 0 || l.indexOf('tg://proxy') === 0 ||
+        l.indexOf('secret=dd') >= 0 || l.indexOf('secret%3ddd') >= 0 ||
+        l.indexOf('/?bridge=') >= 0 || l.indexOf('?bridge=') >= 0) return 'telegram';
     if (l.indexOf('security=reality') >= 0 || l.indexOf('security%3dreality') >= 0) return 'reality';
     return 'tls';
   }
@@ -1465,12 +1458,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
     CONFIG_LINKS = cfgs;
     CONFIG_NAMES = cfgs.map(function(c) {
       var h = c.split('#');
-      var name = '';
-      try { name = decodeURIComponent((h[1] || '').replace(/\+/g, ' ')) || ''; } catch (e) { name = ''; }
-      if (name) return name;
-      // Web Proxy links carry no #fragment (Telegram ignores one), so fall
-      // back to a readable label instead of the generic "Config".
-      return isWebProxyLink(c) ? 'Web Proxy' : 'Config';
+      try { return decodeURIComponent((h[1] || '').replace(/\+/g, ' ')) || 'Config'; } catch (e) { return 'Config'; }
     });
     CONFIG_PROTOS = cfgs.map(protoOf);
 

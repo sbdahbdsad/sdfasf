@@ -1066,7 +1066,7 @@ tr{animation:fadeIn .3s ease}
 /* Main requested accordion */
 .nav-accordion{border:1px solid #2a2a2a;border-radius:12px;overflow:hidden;background:#000;box-shadow:none;margin:2px 0 4px}
 .nav-accordion-head{width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:11px 14px;background:#000;color:#fff;border:0;border-bottom:1px solid #2a2a2a;font:600 13px inherit;cursor:pointer}
-.nav-accordion-title{display:inline-flex;align-items:center;gap:8px}.nav-accordion-ic{font-size:18px}.nav-accordion-arrow{font-size:19px;transition:transform .2s}.nav-accordion-body{max-height:0;overflow-x:hidden;overflow-y:hidden;overscroll-behavior:contain;transition:max-height .25s ease;background:#000}.nav-accordion.open .nav-accordion-body{max-height:min(520px, calc(100vh - 190px));overflow-y:auto; scrollbar-width:thin; scrollbar-color:#555 transparent; -webkit-overflow-scrolling:touch}.nav-accordion.open .nav-accordion-body::-webkit-scrollbar{width:5px}.nav-accordion.open .nav-accordion-body::-webkit-scrollbar-thumb{background:#555;border-radius:8px}.nav-accordion.open .nav-accordion-body::-webkit-scrollbar-track{background:transparent}.nav-accordion.open .nav-item{flex-shrink:0}.nav-accordion.open .nav-accordion-arrow{transform:rotate(180deg)}.nav-accordion-body .nav-item{border-radius:0!important;border:0!important;border-bottom:1px solid #1d1d1d!important;background:#000!important;margin:0!important}.nav-accordion-body .nav-item:last-child{border-bottom:0!important}.nav-accordion-body .nav-item.active{background:#000!important;color:#fff!important;box-shadow:inset 3px 0 0 #fff}.nav-accordion-body .nav-item:hover{background:#000!important}
+.nav-accordion-title{display:inline-flex;align-items:center;gap:8px}.nav-accordion-ic{font-size:18px}.nav-accordion-arrow{font-size:19px;transition:transform .2s}.nav-accordion-body{max-height:0;overflow:hidden;transition:max-height .25s ease;background:#000}.nav-accordion.open .nav-accordion-body{max-height:520px}.nav-accordion.open .nav-accordion-arrow{transform:rotate(180deg)}.nav-accordion-body .nav-item{border-radius:0!important;border:0!important;border-bottom:1px solid #1d1d1d!important;background:#000!important;margin:0!important}.nav-accordion-body .nav-item:last-child{border-bottom:0!important}.nav-accordion-body .nav-item.active{background:#000!important;color:#fff!important;box-shadow:inset 3px 0 0 #fff}.nav-accordion-body .nav-item:hover{background:#000!important}
 [data-theme="light"] .nav-accordion{background:#fff;border-color:#cfcfcf;box-shadow:none}[data-theme="light"] .nav-accordion-head{background:#fff;color:#000;border-color:#d8d8d8}[data-theme="light"] .nav-accordion-body{background:#fff}[data-theme="light"] .nav-accordion-body .nav-item{background:#fff!important;border-bottom-color:#e6e6e6!important;color:#333}[data-theme="light"] .nav-accordion-body .nav-item.active{background:#fff!important;color:#000!important;box-shadow:inset 3px 0 0 #000}
 
 /* Node selector inside Node inbound editor */
@@ -2440,15 +2440,8 @@ IMPLEMENTATION RULES
       <div id="ib-tg-railway-info" class="px-hint" style="margin-top:-4px">External Domain/Port entered for this Telegram inbound are authoritative. Railway TCP values are shown only as advisory.</div>
     </div>
 
-    <!-- Telegram Web Proxy fields -->
-    <div id="ib-webproxy-fields" class="hidden">
-      <div class="divider"></div>
-      <div style="font-size:11px;color:var(--neon);font-weight:700;margin-bottom:8px">Web Proxy · Telegram</div>
-      <div class="px-hint">از HTTPS و WebSocket دامنه عمومی خود پنل روی پورت 443 استفاده می‌کند؛ listener یا پورت مجزا نیاز ندارد. برای هر کاربر secret جدا ساخته می‌شود.</div>
-    </div>
-
     <!-- Network group -->
-    <div class="divider" id="ib-network-divider"></div>
+    <div class="divider"></div>
     <div id="ib-net-wrap">
       <div class="f-g"><label data-i18n="network">نوع انتقال (Transport)</label><select id="ib-network" onchange="onNetworkChange()">
         <option value="tcp">TCP</option>
@@ -2734,6 +2727,24 @@ Object.assign(I18N.en, {
   'helpLogsTotal': 'Total', 'helpLogsConn': 'Connections', 'helpLogsAuth': 'Auth', 'helpLogsErr': 'Errors', 'helpLogsNone': 'No log entries match this filter.'
 });
 
+// ── Built-in `Web Proxy` inbound (telegram-webproxy) ───────────────────────
+Object.assign(I18N.fa, {
+  wpProto: 'پروتکل', wpTransport: 'ترنسپورت', wpAutoDomain: 'دامنه پنل',
+  wpPublicPort: 'پورت عمومی', wpInternalPort: 'پورت داخلی برنامه', wpBridge: 'Bridge',
+  wpStatus: 'وضعیت', wpStatus_enabled: 'فعال', wpStatus_disabled: 'غیرفعال',
+  wpStatus_not_ready: 'آماده نیست', wpAssignedUsers: 'کاربران اختصاص‌یافته',
+  wpEnable: 'فعال‌سازی', wpDisable: 'غیرفعال‌سازی', wpSystemHint: 'اینباند سیستمی — قابل حذف نیست',
+  wpNoListen: 'بدون پورت TCP محلی؛ ترافیک روی HTTPS/WSS خود پنل می‌آید.'
+});
+Object.assign(I18N.en, {
+  wpProto: 'Protocol', wpTransport: 'Transport', wpAutoDomain: 'Panel domain',
+  wpPublicPort: 'Public port', wpInternalPort: 'Internal app port', wpBridge: 'Bridge',
+  wpStatus: 'Status', wpStatus_enabled: 'Enabled', wpStatus_disabled: 'Disabled',
+  wpStatus_not_ready: 'Not ready', wpAssignedUsers: 'Assigned users',
+  wpEnable: 'Enable', wpDisable: 'Disable', wpSystemHint: 'System inbound — cannot be deleted',
+  wpNoListen: 'No local TCP port; traffic arrives over the panel’s own HTTPS/WSS.'
+});
+
 function t(key) {
   var dict = I18N[LANG] || I18N.fa;
   return dict[key] != null ? dict[key] : (I18N.fa[key] != null ? I18N.fa[key] : key);
@@ -2776,12 +2787,30 @@ async function api(url, opts) {
     opts.body = JSON.stringify(opts.body);
   }
   var r = await fetch(url, opts);
+  var txt = await r.text();
+  var data = null;
+  var parseError = null;
+  if (txt.trim()) {
+    try { data = JSON.parse(txt); }
+    catch (e) { parseError = e; }
+  }
   if (!r.ok) {
-    var txt = await r.text();
-    try { var j = JSON.parse(txt); throw new Error(j.detail || j.error || txt); } catch(e) { if (e.message && e.message !== txt) throw e; }
+    var detail = data && typeof data === 'object' && (data.detail || data.error || data.message);
+    if (detail) throw new Error(typeof detail === 'string' ? detail : JSON.stringify(detail));
+    var htmlResponse = /(?:<!doctype\s+html|<html[\s>])/i.test(txt.slice(0, 300));
+    if (parseError || htmlResponse) {
+      console.error('API returned a non-JSON error response:', url, r.status, (r.headers.get('content-type') || ''), txt.slice(0, 300));
+      throw new Error('پاسخ API معتبر نیست (HTTP ' + r.status + '). سرور به‌جای JSON پاسخ متنی/HTML داده؛ مسیر API، نشست ورود یا خطای داخلی سرور را بررسی کنید.');
+    }
     throw new Error('خطای سرور: ' + r.status);
   }
-  return r.json();
+  if (!txt.trim()) return {};
+  if (parseError) {
+    var contentType = r.headers.get('content-type') || 'نامشخص';
+    console.error('API returned non-JSON data:', url, r.status, contentType, txt.slice(0, 300));
+    throw new Error('پاسخ API برای «' + url + '» JSON نیست (HTTP ' + r.status + '، ' + contentType + '). احتمالاً پاسخ HTML یا خطای داخلی سرور دریافت شده است.');
+  }
+  return data;
 }
 
 // ─── Toast ───
@@ -3444,17 +3473,22 @@ function renderEditInboundPicker(u) {
   ALL_IB.forEach(function(ib) {
     var id = ib.inbound_id;
     var selected = EU_INBOUND_PICKS[id] === true;
-    var proto = (ib.protocol || 'vless').toUpperCase();
     var type = (ib.protocol || 'vless').toLowerCase();
+    var isWebProxy = type === 'telegram-webproxy' || String(ib._managed_kind || '') === 'webproxy';
+    var proto = isWebProxy ? (ib.display_protocol || 'Telegram Web Proxy') : type.toUpperCase();
+    var meta = isWebProxy ? (proto + ' · TLS + WS · ' + (ib.status || '')) :
+      (proto + ' · ' + (ib.network || 'ws') + ' · ' + (ib.security || 'tls'));
     html += '<div class="ib-pick' + (selected ? ' selected' : '') + '" data-id="' + esc(id) + '" onclick="euToggleIbPick(this)">' +
-      '<div class="ib-pick-ic"><span class="material-symbols-outlined">' + (type === 'worker' ? 'bolt' : 'cloud') + '</span></div>' +
+      '<div class="ib-pick-ic"><span class="material-symbols-outlined">' + (type === 'worker' ? 'bolt' : isWebProxy ? 'language' : type === 'reality' ? 'shield' : 'cloud') + '</span></div>' +
       '<div class="ib-pick-info">' +
         '<div class="ib-pick-name">' + esc(inboundDisplayName(ib)) + '</div>' +
-        '<div class="ib-pick-meta">' + esc(proto + ' · ' + (ib.network || 'ws') + ' · ' + (ib.security || 'tls')) + '</div>' +
+        '<div class="ib-pick-meta">' + esc(meta) + '</div>' +
       '</div>' +
       '<div class="ib-pick-check"><span class="material-symbols-outlined">check</span></div>' +
     '</div>';
-    if (selected && ib.proxy_managed) {
+    if (selected && isWebProxy) {
+      html += '<div style="flex-basis:100%;padding:8px 12px;color:var(--txt2);font-size:11px">' + esc(t('wpNoListen')) + '</div>';
+    } else if (selected && ib.proxy_managed) {
       html += '<div style="flex-basis:100%;padding:8px 12px;color:var(--txt2);font-size:11px">' + t('proxy.inboundHint') + '</div>';
     } else if (selected && type === 'worker') {
       var sel = EU_COUNTRIES[id] || {};
@@ -3612,20 +3646,47 @@ async function loadInbounds() {
     renderInbounds();
     populateInboundSelects();
   } catch(e) {
-    $id('inbounds-list').innerHTML = '<div class="empty">' + t('errLoadInbounds') + '</div>';
+    var list = $id('inbounds-list');
+    if (list) list.innerHTML = '<div class="empty">' + esc((t('errLoadInbounds') || 'Error loading inbounds') + ': ' + (e.message || '')) + '</div>';
   }
+}
+
+function isWebProxyIb(ib) {
+  var p = String((ib && ib.protocol) || '').toLowerCase();
+  return p === 'telegram-webproxy' || String((ib && ib._managed_kind) || '') === 'webproxy';
 }
 
 function _ibDetail(ib) {
   var proto = (ib.protocol || 'vless').toLowerCase();
   var d = '<div style="font-size:11px;color:var(--txt2);line-height:1.8">';
-  if (proto === 'telegram') {
+  if (isWebProxyIb(ib)) {
+    // Built-in Web Proxy: public HTTPS/WSS on the panel's own domain. No local
+    // TCP listener — the internal 8080 port is Railway's app port, not a listen.
+    var st = ib.status || 'not_ready';
+    var stColor = st === 'enabled' ? '#2ecc71' : (st === 'disabled' ? '#e67e22' : '#e74c3c');
+    d += t('wpProto') + ': ' + (ib.display_protocol || 'Telegram Web Proxy') + '<br>';
+    d += t('wpTransport') + ': ' + (ib.transport || 'TLS + WebSocket') + '<br>';
+    d += t('domain') + ': ' + (ib.domain || '—') + ' <span style="opacity:.7">(' + t('wpAutoDomain') + ')</span><br>';
+    d += t('wpPublicPort') + ': ' + (ib.external_port || 443) + '<br>';
+    d += t('wpInternalPort') + ': ' + (ib.internal_port || 8080) + '<br>';
+    d += t('wpBridge') + ': <span dir="ltr">https://' + (ib.domain || '—') + (ib.bridge_endpoint || '/') + '</span><br>';
+    d += t('wpStatus') + ': <span style="color:' + stColor + ';font-weight:700">' + esc(t('wpStatus_' + st) || st) + '</span>';
+    if (ib.status_detail) d += '<br><span style="color:#e67e22">' + esc(ib.status_detail) + '</span>';
+    var users = ib.assigned_users || [];
+    if (users.length) {
+      d += '<br>' + t('wpAssignedUsers') + ':';
+      d += '<div style="margin-top:3px">';
+      users.forEach(function (row) {
+        d += '<span style="display:inline-block;margin:1px 4px 1px 0;padding:1px 7px;border-radius:9px;border:1px solid var(--line);font-size:10px">' +
+          esc(row.username || row.user_id) + (row.has_secret ? '' : ' <span style="opacity:.6">·</span>') + '</span>';
+      });
+      d += '</div>';
+    }
+  } else if (proto === 'telegram') {
     var tg = ib.telegram_settings || {};
     d += 'Domain: ' + (tg.external_domain || ib.external_domain || '—') + '<br>';
     d += 'Internal Port: ' + (tg.internal_port || ib.port || '—') + '<br>';
     d += 'External Port: ' + (tg.external_port || ib.external_port || '—');
-  } else if (proto === 'web_proxy') {
-    d += 'Endpoint: ' + (ib.external_domain || ib.domain || 'دامنه پنل') + ':443<br>HTTPS + WebSocket<br>Secret: per-user';
   } else if (proto === 'worker') {
     d += t('domain') + ': ' + (ib.external_domain || '—') + '<br>';
     d += t('port') + ': 443 (Worker)';
@@ -3636,8 +3697,11 @@ function _ibDetail(ib) {
     d += t('domain') + ': ' + (ib.external_domain || '—') + ' (خودکار)<br>';
     d += t('port') + ': 443 / relay';
   }
-  if (proto !== 'telegram' && proto !== 'web_proxy') {
+  if (proto !== 'telegram' && !isWebProxyIb(ib)) {
     d += '<br>' + t('secNetwork') + ': ' + (ib.network || 'tcp') + ' | ' + t('security') + ': ' + (ib.security || 'none');
+  }
+  if (isWebProxyIb(ib)) {
+    d += '<br><span style="opacity:.7">' + esc(t('wpNoListen')) + '</span>';
   }
   d += '<br>' + t('usersCount') + ': ' + (ib.users_count || 0);
   d += '</div>';
@@ -3661,7 +3725,14 @@ function renderInbounds() {
       '</button>' +
       '<div class="spd-acc-body" id="acc-ia-' + ib.inbound_id + '">' +
         _ibDetail(ib) +
-        ((ib.proxy_managed || ib._managed_kind === 'default_web_proxy' || proto === 'web_proxy') ? '' : '<div class="spd-acc-btns">' +
+        (ib.proxy_managed ? '' : isWebProxyIb(ib) ?
+          '<div class="spd-acc-btns">' +
+            '<span style="font-size:10px;opacity:.6">' + esc(t('wpSystemHint')) + '</span>' +
+            ((ib.enabled === false) ?
+              '<button class="btn btn-sm btn-g" onclick="setWebProxyEnabled(\'' + ib.inbound_id + '\',true)">' + t('wpEnable') + '</button>' :
+              '<button class="btn btn-sm btn-g" onclick="setWebProxyEnabled(\'' + ib.inbound_id + '\',false)">' + t('wpDisable') + '</button>') +
+          '</div>' :
+          '<div class="spd-acc-btns">' +
           '<button class="btn btn-sm btn-g" onclick="editInbound(\'' + ib.inbound_id + '\')">' + t('edit') + '</button>' +
           ((ib.system || ib.inbound_id === 'Node') ? '' : '<button class="btn btn-sm btn-g" onclick="deleteInbound(\'' + ib.inbound_id + '\')">' + t('delete') + '</button>') +
         '</div>') +
@@ -3725,14 +3796,11 @@ async function loadTelegramRailwayInfo(){
 function onInboundTypeChange() {
   var type = $id('ib-inbound-type').value;
   var isTg = type === 'telegram';
-  var isWebProxy = type === 'web_proxy';
   var isConfig = type === 'config';
   toggleById('ib-tls-fields', isConfig);
   toggleById('ib-net-wrap', isConfig);
   toggleById('ib-internal-port-wrap', isConfig);
   toggleById('ib-tg-fields', isTg);
-  toggleById('ib-webproxy-fields', isWebProxy);
-  toggleById('ib-network-divider', isConfig || isTg);
   if (isTg) loadTelegramRailwayInfo();
 }
 
@@ -3858,8 +3926,6 @@ function ensureNodeSelector(ib) {
 }
 
 function openCreateInbound() {
-  // Web Proxy is provisioned automatically and cannot be created manually.
-  // Keep the general create flow for all other inbound types.
   // Reset form for new inbound creation
   setInboundNodeOnlyMode(false);
   var nodeWrap = $id('ib-node-select');
@@ -3894,17 +3960,16 @@ async function editInbound(iid) {
   if (!ib) return;
   var isReality = (ib.protocol === 'reality' || ib.security === 'reality');
   var isTg = (ib.protocol || '').toLowerCase() === 'telegram';
-  var isWebProxy = (ib.protocol || '').toLowerCase() === 'web_proxy';
-  if (isWebProxy || ib._managed_kind === 'default_web_proxy') {
-    toast('اینباند پیش‌فرض Web Proxy قابل ویرایش نیست', 'err');
-    return;
-  }
-  var isNode = ((ib.protocol || '').toLowerCase() === 'node' || ib.inbound_id === 'Node' || ib.system === true);
+  // Only the explicit Node selector uses the Node-only editor. Other
+  // system inbounds (notably Web Proxy) must keep their own semantics.
+  var isNode = ((ib.protocol || '').toLowerCase() === 'node' ||
+                (ib.inbound_type || '').toLowerCase() === 'node' ||
+                ib.inbound_id === 'Node');
   var modal = $id('mod-inbound');
   $id('ib-title').textContent = t('editInbound');
   $id('ib-id').value = iid;
   $id('ib-name').value = ib.name || '';
-  $id('ib-inbound-type').value = isTg ? 'telegram' : (isWebProxy ? 'web_proxy' : 'config');
+  $id('ib-inbound-type').value = isTg ? 'telegram' : 'config';
   $id('ib-sni').value = ib.sni || 'is1-ssl.mzstatic.com';
   var rs = ib.reality_settings || {};
   $id('ib-privkey').value = (rs || {}).private_key || '';
@@ -3946,11 +4011,6 @@ async function editInbound(iid) {
     $id('ib-submit').textContent = t('updateInbound');
     onInboundTypeChange();
     openModal('mod-inbound');
-  } else if (isWebProxy) {
-    $id('ib-inbound-type').value = 'web_proxy';
-    $id('ib-submit').textContent = t('updateInbound');
-    onInboundTypeChange();
-    openModal('mod-inbound');
   } else if (isReality) {
     // Reality: user fills domain + ports; pbk is auto-generated.
     $id('ib-security').value = 'reality';
@@ -3986,7 +4046,7 @@ async function submitInbound(e) {
   btn.textContent = t('saving');
   var iid = $id('ib-id').value;
   var type = $id('ib-inbound-type').value;
-  var proto = type === 'telegram' ? 'telegram' : (type === 'web_proxy' ? 'web_proxy' : 'vless');
+  var proto = type === 'telegram' ? 'telegram' : 'vless';
 
   // Collect selected node IDs for Inbound "Node"
   var nodeIds = [];
@@ -4021,9 +4081,6 @@ async function submitInbound(e) {
     body.port = internalPort;
     body.external_port = externalPort;
     body.external_domain = $id('ib-tg-domain').value || '';
-  } else if (type === 'web_proxy') {
-    body.protocol = 'web_proxy';
-    body.inbound_type = 'telegram_web_proxy';
   } else {
     // VLESS / TLS / Reality
     var network = $id('ib-network').value;
@@ -4094,7 +4151,9 @@ async function loadAdvancedInbounds() {
     var d = await api('/api/inbounds');
     ALL_ADV_IB = (d.inbounds || []).filter(function(ib) {
       var p = String(ib.protocol || '').toLowerCase();
-      return p !== 'node' && p !== 'telegram' && p !== 'web_proxy';
+      // System inbounds are not free-form JSON: Node stores a relationship,
+      // Telegram owns a listener, Web Proxy is fully derived from panel state.
+      return p !== 'node' && p !== 'telegram' && p !== 'telegram-webproxy';
     });
     if (!ALL_ADV_IB.some(function(ib) { return ib.inbound_id === SELECTED_ADV_IB; })) SELECTED_ADV_IB = '';
     renderAdvancedInboundList();
@@ -5916,6 +5975,7 @@ function cuInboundType(ib) {
   var p = (ib && ib.protocol || '').toLowerCase();
   if (p === 'worker') return 'worker';
   if (p === 'telegram') return 'telegram';
+  if (p === 'telegram-webproxy') return 'telegram-webproxy';
   if (p === 'reality' || (ib && ib.security || '').toLowerCase() === 'reality') return 'reality';
   return 'tls';
 }
@@ -5939,6 +5999,21 @@ function cuToggleIpSwitch(ibId, el) {
   var type = el.getAttribute('data-type');
   if (type === 'cf') cuInboundState.countries[ibId].cf = on;
   else if (type === 'railway') cuInboundState.countries[ibId].railway = on;
+}
+function setWebProxyEnabled(inboundId, enabled) {
+  if (!confirm(enabled ? 'اینباند Web Proxy را فعال می‌کنیم' : 'اینباند Web Proxy را غیرفعال می‌کنیم\n\n' +
+    'فعال‌سازی: لینک‌های کاربران باز می‌شوند. غیرفعال‌سازی: دسترسی کنسل می‌شود.')) return;
+  api('/api/inbounds/' + encodeURIComponent(inboundId) + '/enabled', {
+    method: 'POST', body: { enabled: !!enabled }
+  }).then(function(j) {
+    if (j && j.ok) {
+      alert(enabled ? t('wpEnable') + ': OK' : t('wpDisable') + ': OK');
+      // Refresh inbounds and the selector cache after the server confirms the change.
+      location.reload();
+    } else {
+      alert(t('errLoadInbounds') + ': ' + ((j && (j.error || j.message)) || 'پاسخ نامعتبر از سرور'));
+    }
+  }).catch(function(e) { alert('Request failed: ' + (e.message || 'خطای نامشخص')); });
 }
 
 function cuPickWorkerCountries(ibId, el) {
@@ -5984,8 +6059,9 @@ function cuRenderInboundOpts() {
     var type = cuInboundType(ib);
     var proto = (ib.protocol || 'vless').toUpperCase();
     var meta = proto + ' · ' + (ib.network || 'ws').toUpperCase() + ' · ' + (ib.security || 'tls').toUpperCase();
+    if (type === 'telegram-webproxy') meta = (ib.display_protocol || 'Telegram Web Proxy') + ' · TLS + WS · ' + (ib.status || '');
     html += '<div class="ib-pick' + (selected ? ' selected' : '') + '" data-id="' + esc(id) + '" onclick="cuToggleIbPick(this)">' +
-      '<div class="ib-pick-ic"><span class="material-symbols-outlined">' + (type === 'worker' ? 'bolt' : type === 'reality' ? 'shield' : 'cloud') + '</span></div>' +
+      '<div class="ib-pick-ic"><span class="material-symbols-outlined">' + (type === 'worker' ? 'bolt' : type === 'reality' ? 'shield' : type === 'telegram-webproxy' ? 'language' : 'cloud') + '</span></div>' +
       '<div class="ib-pick-info">' +
         '<div class="ib-pick-name">' + esc(inboundDisplayName(ib)) + '</div>' +
         '<div class="ib-pick-meta">' + esc(meta) + '</div>' +
@@ -6025,6 +6101,8 @@ function cuRenderInboundOpts() {
           '<button type="button" class="ios-switch' + (selt2.railway ? ' on' : '') + '" data-type="railway" onclick="cuToggleIpSwitch(\'' + esc(id) + '\',this)"></button></div>';
       } else if (type === 'telegram') {
         html += '<div class="px-hint" style="margin:0">Telegram Proxy — نیازی به IP اضافی نیست</div>';
+      } else if (type === 'telegram-webproxy') {
+        html += '<div class="px-hint" style="margin:0">' + esc(t('wpNoListen')) + '</div>';
       } else {
         html += '<div class="px-hint" style="margin:0">' + t('realityNoExtra') + '</div>';
       }

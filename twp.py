@@ -480,9 +480,6 @@ class RelaySession:
     async def on_ws_message(self, data: bytes) -> None:
         if self.closed:
             return
-        # Session lifetime is an idle timeout, not a fixed five-minute lease.
-        # Active Telegram sessions must survive continuous traffic indefinitely.
-        self.expires_at = time.time() + SESSION_TTL_SECONDS
         length = len(data)
         if not length or length > MAX_WS_MESSAGE:
             await self.protocol_error("invalid_websocket_message")
@@ -787,8 +784,6 @@ class RelaySession:
     async def _emit(self, frame_type: int, stream_id: int, payload: bytes = b"") -> None:
         if self.closed or self._send is None:
             return
-        # Downlink-only transfers also keep an active session alive.
-        self.expires_at = time.time() + SESSION_TTL_SECONDS
         async with self._send_lock:
             try:
                 await self._send(encode_frame(frame_type, stream_id, payload))

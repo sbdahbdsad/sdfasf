@@ -127,12 +127,6 @@ Panel
 
 The project also exposes QR endpoints for subscription/user configuration delivery.
 
-### Telegram Web Proxy inbound
-
-SpiderPanel includes a managed **`web proxy`** inbound for Telegram Web Proxy. It reuses the panel's public HTTPS/WebSocket endpoint on port `443` and does not open a separate listener. Assign the inbound to a user to generate and persist a dedicated 16-byte secret; the subscription receives a `https://t.me/webproxy?secret=dd…&server=<panel-host>` link. The public bridge, short-lived session bootstrap, authenticated WebSocket relay and per-user traffic accounting are handled by `twp.py` and the panel routes.
-
-For a deployment with multiple replicas sharing the same hostname, configure the same `SPIDER_TWP_SIGNING_KEY` (at least 16 characters) on every replica, and use persistent shared state for user/inbound data. A single instance can generate and persist its own signing key under `DATA_DIR`.
-
 ---
 
 # 🤖 Telegram automation
@@ -264,6 +258,7 @@ FastAPI application
 ├── requirements.txt
 ├── start.sh
 ├── main.py
+├── twp.py                  # Telegram Web Proxy core (framing, MTProxy crypto, relay)
 └── README.md
 ```
 
@@ -280,6 +275,97 @@ The Docker image exposes the panel on:
 ```
 
 For a clean deployment, map your platform's public hostname to that application port.
+
+---
+
+# 🌐 Built-in `Web Proxy` inbound (Telegram Web Proxy)
+
+SpiderPanel ships a **system inbound named `Web Proxy`** (protocol
+`telegram-webproxy`). It is created automatically on first boot and migrated
+into existing installations, so an administrator never has to build it by
+hand. Assign it to a user like any other inbound and that user gets their own
+`t.me/webproxy` link.
+
+| Setting              | Value                                            |
+| -------------------- | ------------------------------------------------ |
+| Display name         | `Web Proxy`                                      |
+| Protocol             | `telegram-webproxy`                              |
+| Security             | `TLS`                                            |
+| Transport            | `WebSocket (WS)`                                 |
+| Public hostname      | the panel's own canonical domain                 |
+| Public port          | `443`                                            |
+| Internal app port    | `8080` (Railway forwards HTTPS/WSS to it)        |
+| Bridge endpoint      | `https://<PANEL_HOSTNAME>/`                      |
+| Session endpoint     | `https://<PANEL_HOSTNAME>/api/v1/session`        |
+| WebSocket endpoint   | `wss://<PANEL_HOSTNAME>/api/v1/ws`               |
+
+### No extra listener, no separate TLS
+
+Railway terminates public TLS on 443 and forwards HTTPS/WebSocket traffic to
+SpiderPanel on 8080 — the **same** application that serves the dashboard.
+Uvicorn is never bound to 443, no second TLS listener is started, no unrelated
+subdomain is created, and no separate Railway TCP Proxy is required.
+
+TWP reuses that transport while keeping its own binary frame protocol, MTProxy
+handshake validation, cryptographic state, TCP upstream sockets and full-duplex
+relay logic. **TWP frames never travel through the VLESS WebSocket handler**;
+`/api/v1/ws` is registered ahead of the VLESS catch-all path so the two cannot
+be confused. In the subscription page (`sub.html`) the generated link appears
+under the existing **Telegram Proxy** category, next to native MTProxy links.
+
+### The public domain is inherited, never typed
+
+The hostname is derived from the panel's existing `get_host()` resolution, so a
+custom trusted panel domain or Railway's `RAILWAY_PUBLIC_DOMAIN` is picked up
+automatically. It is **never** taken from an arbitrary incoming HTTP `Host`
+header. When the trusted domain changes, the displayed hostname and every newly
+generated link follow — the inbound is not recreated and user secrets are
+untouched.
+
+### Per-user secrets
+
+Assigning the inbound mints a cryptographically random `secrets.token_hex(16)`
+secret, stored separately from the user's native `telegram_secret` and keyed by
+`(user_id, inbound_id)`. The link is:
+
+```text
+https://t.me/webproxy?server=<PANEL_HOSTNAME>&secret=<USER_SECRET>
+```
+
+The `server` parameter carries the bare hostname only — no scheme, no internal
+port, no path, and never `:443`. Secrets are reused across ordinary restarts
+and config regeneration; an explicit revocation followed by reassignment mints
+a replacement. A user's secret is never exposed to anyone else and never
+reused from another credential.
+
+### Signing key
+
+`SPIDER_TWP_SIGNING_KEY` is the recommended way to supply the HMAC signing key
+used for short-lived bootstrap and session tokens. When it is absent, the panel
+generates one **once** and persists it atomically (`O_EXCL`, mode `0600`) at:
+
+```text
+DATA_DIR/twp_signing.key
+```
+
+- Every replica **must share the same** signing key, otherwise a bootstrap
+  issued by one replica will not verify on another. Set `SPIDER_TWP_SIGNING_KEY`
+  explicitly when running more than one replica.
+- The panel **needs persistent storage** so the fallback key and the persisted
+  per-user secrets survive restarts. A fresh or ephemeral volume regenerates
+  both and invalidates existing links.
+- The signing key is never logged and never returned by any API response.
+- If no stable key can be obtained, the inbound reports **`not_ready`** with an
+  explanation in the authenticated admin UI instead of advertising links that
+  cannot work. Every unrelated SpiderPanel feature keeps running.
+
+### Status, disabling and deletion
+
+The inbound row shows the protocol, transport, domain, public port, live status
+(`enabled` / `disabled` / `not_ready`) and its assigned users. Deletion is
+blocked; use enable/disable instead. Disabling stops new sessions immediately,
+tears down live relays and stops advertising working links. Re-enabling restores
+service without recreating anything.
 
 ---
 
@@ -306,6 +392,10 @@ The `svg/` directory contains the original documentation artwork used by this RE
 - Use HTTPS for production panel access.
 - Restrict administrative access to trusted operators.
 - Review generated subscription links before sharing them publicly.
+- `DATA_DIR/twp_signing.key` is a secret: it is written with mode `0600`, but
+  keep it out of version control and out of shared backups you do not control.
+- Share one `SPIDER_TWP_SIGNING_KEY` across replicas, and use persistent storage
+  so the fallback key and per-user Web Proxy secrets survive restarts.
 
 ---
 

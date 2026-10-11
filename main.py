@@ -1326,6 +1326,80 @@ def web_proxy_inbound_view(inbound_id: str, inbound: dict) -> dict:
     }
 
 
+def _find_node_selector_inbound(inbounds: dict) -> tuple[str, dict] | None:
+    """Find the dedicated Node selector without mistaking other system inbounds for it.
+
+    Older startup code treated *any* ``system=True`` inbound as the Node
+    selector. The built-in Web Proxy is also system-managed, so that predicate
+    could rename it to ``Node`` and effectively delete the Web Proxy inbound.
+    Identity must be based on the canonical id or Node-specific metadata; the
+    legacy fallback only accepts a system inbound literally named ``Node``.
+    """
+    candidates: list[tuple[int, str, dict]] = []
+    for inbound_id, inbound in inbounds.items():
+        if not isinstance(inbound, dict):
+            continue
+        protocol = str(inbound.get("protocol") or "").strip().lower()
+        inbound_type = str(inbound.get("inbound_type") or "").strip().lower()
+        name = str(inbound.get("name") or "").strip().casefold()
+        if inbound_id == "Node":
+            priority = 0
+        elif protocol == "node" or inbound_type == "node":
+            priority = 1
+        elif inbound.get("system") is True and name == "node":
+            # Compatibility with legacy selector records lacking typed metadata.
+            priority = 2
+        else:
+            continue
+        candidates.append((priority, str(inbound_id), inbound))
+    if not candidates:
+        return None
+    _, inbound_id, inbound = min(candidates, key=lambda item: (item[0], item[1]))
+    return inbound_id, inbound
+
+
+def _ensure_node_selector_inbound(inbounds: dict) -> tuple[bool, bool]:
+    """Create or normalize the system Node selector in-place.
+
+    Returns ``(changed, created)`` so startup can persist migrations exactly
+    once. Crucially, system-managed inbounds without Node-specific identity are
+    left untouched.
+    """
+    node_selector = _find_node_selector_inbound(inbounds)
+    if node_selector is None:
+        inbounds["Node"] = {
+            "name": "Node",
+            "protocol": "node",
+            "inbound_type": "node",
+            "node_ids": [],
+            "enabled_node_ids": [],
+            "system": True,
+            "created_at": datetime.now().isoformat(),
+        }
+        return True, True
+
+    old_id, old_record = node_selector
+    changed = old_id != "Node"
+    if old_id != "Node":
+        inbounds["Node"] = dict(old_record)
+        inbounds.pop(old_id, None)
+    node = inbounds["Node"]
+    before = dict(node)
+    node["name"] = "Node"
+    node["protocol"] = "node"
+    node["inbound_type"] = "node"
+    node["system"] = True
+    current_ids = node.get("enabled_node_ids")
+    if not isinstance(current_ids, list):
+        current_ids = node.get("node_ids") if isinstance(node.get("node_ids"), list) else []
+    current_ids = list(dict.fromkeys(str(value).strip() for value in current_ids if str(value).strip()))
+    node["enabled_node_ids"] = current_ids
+    node["node_ids"] = list(current_ids)
+    for obsolete in ("port", "network", "security", "domain", "external_domain", "external_port", "sni", "reality_settings", "xhttp_settings"):
+        node.pop(obsolete, None)
+    return changed or before != node, False
+
+
 async def ensure_web_proxy_inbound() -> str:
     """Create or migrate the single built-in Web Proxy inbound. Idempotent.
 
@@ -1333,7 +1407,7 @@ async def ensure_web_proxy_inbound() -> str:
     inbound, an existing install is adopted in place (never duplicated), and
     user assignments survive the migration.
     """
-    created = False
+    needs_save = False
     async with INBOUNDS_LOCK:
         matches = [iid for iid, ib in INBOUNDS.items() if is_web_proxy_inbound(ib)]
         canonical = WEB_PROXY_INBOUND_ID
@@ -1352,6 +1426,7 @@ async def ensure_web_proxy_inbound() -> str:
                 _web_proxy_secret_map(canonical).update(_web_proxy_secret_map(source))
                 WEB_PROXY_SECRETS.pop(source, None)
                 retired.add(str(source))
+                needs_save = True
                 logger.info("Web Proxy inbound migrated to stable id %s", canonical)
 
             if canonical not in INBOUNDS:
@@ -1381,7 +1456,7 @@ async def ensure_web_proxy_inbound() -> str:
                     "ws_settings": {"path": WEB_PROXY_WS_PATH},
                     "created_at": datetime.now().isoformat(),
                 }
-                created = True
+                needs_save = True
                 log_activity("inbound", f"اینباند {WEB_PROXY_INBOUND_NAME} ساخته شد", "ok")
 
         # Drop any further duplicates left over from older builds.
@@ -1390,6 +1465,7 @@ async def ensure_web_proxy_inbound() -> str:
             _web_proxy_secret_map(canonical).update(_web_proxy_secret_map(duplicate))
             WEB_PROXY_SECRETS.pop(duplicate, None)
             retired.add(str(duplicate))
+            needs_save = True
             logger.warning("Duplicate Web Proxy inbound %r removed (name=%r)", duplicate, dup.get("name"))
 
         # One unified pass re-points every user/link from any previous Web Proxy
@@ -1405,19 +1481,29 @@ async def ensure_web_proxy_inbound() -> str:
                 canonical if x in moved or x == canonical else x for x in selected))
             if merged != selected:
                 user["inbound_ids"] = merged
+                needs_save = True
             primary = str(user.get("inbound_id") or "")
             if primary in moved:
                 user["inbound_id"] = canonical
+                needs_save = True
         for link in LINKS.values():
             if str(link.get("inbound_id") or "") in moved:
                 link["inbound_id"] = canonical
+                needs_save = True
 
         ib = INBOUNDS[canonical]
+        ib_before_normalize = dict(ib)
+        secrets_before_normalize = dict(_web_proxy_secret_map(canonical))
         ib["_managed_kind"] = WEB_PROXY_MANAGED_KIND
         ib["name"] = WEB_PROXY_INBOUND_NAME
         ib["protocol"] = WEB_PROXY_PROTOCOL
+        ib["inbound_type"] = "transport"
         ib["system"] = True
         ib.setdefault("enabled", True)
+        # Clean legacy selector-only fields if an older release accidentally
+        # moved the Web Proxy record under the Node ID.
+        ib.pop("enabled_node_ids", None)
+        ib.pop("node_ids", None)
         ib["network"] = "ws"
         ib["security"] = "tls"
         ib["port"] = WEB_PROXY_PUBLIC_PORT
@@ -1437,7 +1523,13 @@ async def ensure_web_proxy_inbound() -> str:
             if re.fullmatch(r"[0-9a-f]{32}", stored):
                 _web_proxy_secret_map(canonical).setdefault(str(uid), stored)
 
-    if created:
+        # Persist every actual migration/normalization, not only fresh creation.
+        # Otherwise a legacy ID or repaired Web Proxy record could reappear on
+        # the next restart when the Node selector was already canonical.
+        if ib != ib_before_normalize or _web_proxy_secret_map(canonical) != secrets_before_normalize:
+            needs_save = True
+
+    if needs_save:
         await save_state()
     return canonical
 
@@ -1576,45 +1668,16 @@ async def startup():
             asyncio.create_task(save_state())
             log_activity("inbound", "اینباند پیش‌فرض Reality+XHTTP ساخته شد", "ok")
         # Auto-create / migrate the system Node selector inbound. It is NOT an
-        # Xray listener: it only stores the Node relationship.
-        node_selector = None
-        for _iid, _ib in INBOUNDS.items():
-            if _ib.get("system") is True or _iid == "Node":
-                node_selector = (_iid, _ib)
-                break
-        if node_selector is None:
-            INBOUNDS["Node"] = {
-                "name": "Node",
-                "protocol": "node",
-                "inbound_type": "node",
-                "network": "",
-                "security": "",
-                "node_ids": [],
-                "enabled_node_ids": [],
-                "system": True,
-                "created_at": datetime.now().isoformat(),
-            }
-            asyncio.create_task(save_state())
+        # Xray listener: it only stores the Node relationship. The migration
+        # uses Node identity, never the generic `system=True` flag shared by
+        # Web Proxy and other system-managed inbounds.
+        _node_changed, _node_created = _ensure_node_selector_inbound(INBOUNDS)
+        if _node_created:
             log_activity("inbound", "اینباند سیستمی Node ساخته شد", "ok")
-        else:
-            _niid, _nib = node_selector
-            if _niid != "Node":
-                INBOUNDS["Node"] = dict(_nib)
-                INBOUNDS.pop(_niid, None)
-            _nib = INBOUNDS.get("Node")
-            if _nib is not None:
-                _nib["name"] = "Node"
-                _nib["protocol"] = "node"
-                _nib["inbound_type"] = "node"
-                _nib["system"] = True
-                current_ids = _nib.get("enabled_node_ids")
-                if not isinstance(current_ids, list):
-                    current_ids = _nib.get("node_ids") if isinstance(_nib.get("node_ids"), list) else []
-                current_ids = [str(x).strip() for x in current_ids if str(x).strip()]
-                _nib["enabled_node_ids"] = list(dict.fromkeys(current_ids))
-                _nib["node_ids"] = list(dict.fromkeys(current_ids))
-                for _obsolete in ("port", "network", "security", "domain", "external_domain", "external_port", "sni", "reality_settings", "xhttp_settings"):
-                    _nib.pop(_obsolete, None)
+        elif _node_changed:
+            logger.info("System Node selector inbound migrated/normalized")
+        if _node_changed:
+            asyncio.create_task(save_state())
         # Any deployed Cloudflare Worker domain (address/host/sni auto-filled),
         # with BPB snispoofing. Only created once a worker is actually connected.
         has_worker = any((ib.get("protocol") or "").lower() == "worker" for ib in INBOUNDS.values())

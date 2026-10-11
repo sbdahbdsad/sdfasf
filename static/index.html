@@ -2787,12 +2787,30 @@ async function api(url, opts) {
     opts.body = JSON.stringify(opts.body);
   }
   var r = await fetch(url, opts);
+  var txt = await r.text();
+  var data = null;
+  var parseError = null;
+  if (txt.trim()) {
+    try { data = JSON.parse(txt); }
+    catch (e) { parseError = e; }
+  }
   if (!r.ok) {
-    var txt = await r.text();
-    try { var j = JSON.parse(txt); throw new Error(j.detail || j.error || txt); } catch(e) { if (e.message && e.message !== txt) throw e; }
+    var detail = data && typeof data === 'object' && (data.detail || data.error || data.message);
+    if (detail) throw new Error(typeof detail === 'string' ? detail : JSON.stringify(detail));
+    var htmlResponse = /(?:<!doctype\s+html|<html[\s>])/i.test(txt.slice(0, 300));
+    if (parseError || htmlResponse) {
+      console.error('API returned a non-JSON error response:', url, r.status, (r.headers.get('content-type') || ''), txt.slice(0, 300));
+      throw new Error('پاسخ API معتبر نیست (HTTP ' + r.status + '). سرور به‌جای JSON پاسخ متنی/HTML داده؛ مسیر API، نشست ورود یا خطای داخلی سرور را بررسی کنید.');
+    }
     throw new Error('خطای سرور: ' + r.status);
   }
-  return r.json();
+  if (!txt.trim()) return {};
+  if (parseError) {
+    var contentType = r.headers.get('content-type') || 'نامشخص';
+    console.error('API returned non-JSON data:', url, r.status, contentType, txt.slice(0, 300));
+    throw new Error('پاسخ API برای «' + url + '» JSON نیست (HTTP ' + r.status + '، ' + contentType + '). احتمالاً پاسخ HTML یا خطای داخلی سرور دریافت شده است.');
+  }
+  return data;
 }
 
 // ─── Toast ───
@@ -3455,17 +3473,22 @@ function renderEditInboundPicker(u) {
   ALL_IB.forEach(function(ib) {
     var id = ib.inbound_id;
     var selected = EU_INBOUND_PICKS[id] === true;
-    var proto = (ib.protocol || 'vless').toUpperCase();
     var type = (ib.protocol || 'vless').toLowerCase();
+    var isWebProxy = type === 'telegram-webproxy' || String(ib._managed_kind || '') === 'webproxy';
+    var proto = isWebProxy ? (ib.display_protocol || 'Telegram Web Proxy') : type.toUpperCase();
+    var meta = isWebProxy ? (proto + ' · TLS + WS · ' + (ib.status || '')) :
+      (proto + ' · ' + (ib.network || 'ws') + ' · ' + (ib.security || 'tls'));
     html += '<div class="ib-pick' + (selected ? ' selected' : '') + '" data-id="' + esc(id) + '" onclick="euToggleIbPick(this)">' +
-      '<div class="ib-pick-ic"><span class="material-symbols-outlined">' + (type === 'worker' ? 'bolt' : 'cloud') + '</span></div>' +
+      '<div class="ib-pick-ic"><span class="material-symbols-outlined">' + (type === 'worker' ? 'bolt' : isWebProxy ? 'language' : type === 'reality' ? 'shield' : 'cloud') + '</span></div>' +
       '<div class="ib-pick-info">' +
         '<div class="ib-pick-name">' + esc(inboundDisplayName(ib)) + '</div>' +
-        '<div class="ib-pick-meta">' + esc(proto + ' · ' + (ib.network || 'ws') + ' · ' + (ib.security || 'tls')) + '</div>' +
+        '<div class="ib-pick-meta">' + esc(meta) + '</div>' +
       '</div>' +
       '<div class="ib-pick-check"><span class="material-symbols-outlined">check</span></div>' +
     '</div>';
-    if (selected && ib.proxy_managed) {
+    if (selected && isWebProxy) {
+      html += '<div style="flex-basis:100%;padding:8px 12px;color:var(--txt2);font-size:11px">' + esc(t('wpNoListen')) + '</div>';
+    } else if (selected && ib.proxy_managed) {
       html += '<div style="flex-basis:100%;padding:8px 12px;color:var(--txt2);font-size:11px">' + t('proxy.inboundHint') + '</div>';
     } else if (selected && type === 'worker') {
       var sel = EU_COUNTRIES[id] || {};
@@ -3623,7 +3646,8 @@ async function loadInbounds() {
     renderInbounds();
     populateInboundSelects();
   } catch(e) {
-    $id('inbounds-list').innerHTML = '<div class="empty">' + t('errLoadInbounds') + '</div>';
+    var list = $id('inbounds-list');
+    if (list) list.innerHTML = '<div class="empty">' + esc((t('errLoadInbounds') || 'Error loading inbounds') + ': ' + (e.message || '')) + '</div>';
   }
 }
 
@@ -3936,7 +3960,11 @@ async function editInbound(iid) {
   if (!ib) return;
   var isReality = (ib.protocol === 'reality' || ib.security === 'reality');
   var isTg = (ib.protocol || '').toLowerCase() === 'telegram';
-  var isNode = ((ib.protocol || '').toLowerCase() === 'node' || ib.inbound_id === 'Node' || ib.system === true);
+  // Only the explicit Node selector uses the Node-only editor. Other
+  // system inbounds (notably Web Proxy) must keep their own semantics.
+  var isNode = ((ib.protocol || '').toLowerCase() === 'node' ||
+                (ib.inbound_type || '').toLowerCase() === 'node' ||
+                ib.inbound_id === 'Node');
   var modal = $id('mod-inbound');
   $id('ib-title').textContent = t('editInbound');
   $id('ib-id').value = iid;
@@ -5975,20 +6003,17 @@ function cuToggleIpSwitch(ibId, el) {
 function setWebProxyEnabled(inboundId, enabled) {
   if (!confirm(enabled ? 'اینباند Web Proxy را فعال می‌کنیم' : 'اینباند Web Proxy را غیرفعال می‌کنیم\n\n' +
     'فعال‌سازی: لینک‌های کاربران باز می‌شوند. غیرفعال‌سازی: دسترسی کنسل می‌شود.')) return;
-  fetch('/api/inbounds/' + encodeURIComponent(inboundId) + '/enabled', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ enabled: enabled }),
-    credentials: 'same-origin'
-  }).then(function(r) { return r.json(); }).then(function(j) {
-    if (j.ok) {
+  api('/api/inbounds/' + encodeURIComponent(inboundId) + '/enabled', {
+    method: 'POST', body: { enabled: !!enabled }
+  }).then(function(j) {
+    if (j && j.ok) {
       alert(enabled ? t('wpEnable') + ': OK' : t('wpDisable') + ': OK');
-      // refresh inbounds and the selector cache
+      // Refresh inbounds and the selector cache after the server confirms the change.
       location.reload();
     } else {
-      alert(t('errLoadInbounds') + ': ' + (j.error || j.message || ''));
+      alert(t('errLoadInbounds') + ': ' + ((j && (j.error || j.message)) || 'پاسخ نامعتبر از سرور'));
     }
-  }).catch(function(e) { alert('Request failed: ' + e.message); });
+  }).catch(function(e) { alert('Request failed: ' + (e.message || 'خطای نامشخص')); });
 }
 
 function cuPickWorkerCountries(ibId, el) {
